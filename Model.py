@@ -37,7 +37,7 @@ class HyperNetwork_TGS_Body(nn.Module):
 class HyperNetwork_TGS_Head(nn.Module):
     """ Hypnet HEAD with 1 MLP Layer """
     
-    def __init__(self, dim_h, c_in, c_out, kh, kw):
+    def __init__(self, dim_h, c_in, c_out, kh, kw, rank):
         super().__init__()
         
         self.dim_h = dim_h
@@ -45,16 +45,19 @@ class HyperNetwork_TGS_Head(nn.Module):
         self.c_out = c_out
         self.kh = kh
         self.kw = kw
+        self.rank = rank
         
-        self.W = Parameter(torch.rand((self.dim_h, self.c_in*self.c_out*self.kh*self.kw)).to(device))
-        self.B = Parameter(torch.rand((self.c_in*self.c_out*self.kh*self.kw)).to(device))
+        self.W = Parameter(torch.rand((self.dim_h, self.rank*(self.c_in + self.c_out + self.kh + self.kw))).to(device))
+        self.B = Parameter(torch.rand((rank*(self.c_in + self.c_out + self.kh + self.kw))).to(device))
         
         
     def forward(self,h):
         
         res = torch.matmul(h, self.W) + self.B
-        weights = res.view(self.c_out, self.c_in, self.kh, self.kw)
-        return weights
+        return res.view(1,self.rank*(self.c_in + self.c_out + self.kh + self.kw))
+    
+
+
     
     
     
@@ -62,8 +65,7 @@ class HyperNetwork_TGS_Head(nn.Module):
 
                 
                 
-                
-                
+            
                 
                 
                 
