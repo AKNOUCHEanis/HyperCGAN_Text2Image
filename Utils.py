@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 
 import numpy as np
+import torch
 
 def tensor_modulation_numpy(weight, styles):
     """ Performs a low-rank tensor modulation """
@@ -23,4 +24,4 @@ def tensor_modulation_numpy(weight, styles):
     
     modulating_tensor = modulating_tensor/ np.sqrt(15)
     
-    return modulating_tensor
+    return torch.tensor(modulating_tensor)

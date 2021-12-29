@@ -29,4 +29,4 @@ if __name__=="__main__":
     
     M = tensor_modulation_numpy(weight, w)
     
-    print(M)
+    print(M.shape)
