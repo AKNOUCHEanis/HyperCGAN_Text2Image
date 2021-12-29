@@ -1,32 +1,59 @@
 # -*- coding: utf-8 -*-
 
-from Model import HyperNetwork_TGS_Head, HyperNetwork_TGS_Body
-from Utils import tensor_modulation_numpy
 import torch
+import torch.nn as nn
+import torch.nn.functional as F
+from text_encoder import *
+from utils import *
+from torch.nn.parameter import Parameter
+import matplotlib.pyplot as plt
 
-if __name__=="__main__":
-    
-    dim_z = 256
-    c_in =  512
-    c_out = 512
-    kh, kw = 3,3
-    rank = 1
-    
-    dim_latent1 = 256
-    dim_latent2 = 300
-    
-    hypnet_body = HyperNetwork_TGS_Body(dim_z, dim_latent1, dim_latent2)
 
-    hypnet_head = HyperNetwork_TGS_Head(dim_h = dim_latent2 , c_in=c_in, c_out=c_out, kh=kh , kw=kw, rank=rank)
+
     
-    z = torch.rand(dim_z)
+img=torch.rand((2,512,512))
+desc=torch.randint(1000,(2,100))
+inputImg=torch.randint(256,(2,1,128,128)).type(torch.float)
+
+
+encoder=Text_Encoder(1000, 16, 32)
+gen1=GeneratorBlock(1, 3, 2, 1, 1)
+gen2=GeneratorBlock(3, 6, 2, 1, 1)
+
+tgsbody=HyperNetwork_TGS_Body(132, 300, 400)
+tgshead1=HyperNetwork_TGS_Head(400, 1, 3, 3, 3, 2)
+tgshead2=HyperNetwork_TGS_Head(400, 3, 6, 3, 3, 2)
+
+liste=torch.count_nonzero(desc.permute(1,0),dim=0).tolist() # pour le packedsequence
+s=encoder(desc.permute(1,0),liste)[1]
+noise=torch.rand((2,100))
+
+desc.shape
+s.shape
+concat=torch.cat((desc,s),dim=1)
+concat.shape
+
     
-    h = hypnet_body.forward(z)
-    w = hypnet_head.forward(h)
-    
-    conv = torch.nn.Conv2d(in_channels=c_in, out_channels=c_out, kernel_size=kh)
-    weight = conv.weight.data
-    
-    M = tensor_modulation_numpy(weight, w)
-    
-    print(M)
+z=tgsbody(concat)
+z1=tgshead1(z)
+z2=tgshead2(z)
+
+
+#Calcul des matrice de modulation M
+m1=tensor_modulation_numpy(gen1.stylegan2.conv.weight,z1)
+m2=tensor_modulation_numpy(gen2.stylegan2.conv.weight, z2)
+
+
+for i in range (m1.shape[0]):
+    #Maj des weights par modulation
+    gen1.stylegan2.conv.weight.data*=m1[i]
+    gen2.stylegan2.conv.weight.data*=m2[i]
+
+
+f=gen1(inputImg)
+f2=gen2(f)
+f2=torch.mean(f2,dim=1)
+f2[0]
+plt.imshow(f2[0].detach().numpy())
+plt.figure()
+plt.imshow(inputImg[0].squeeze().detach().numpy())
