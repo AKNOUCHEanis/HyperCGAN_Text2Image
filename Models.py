@@ -163,7 +163,7 @@ class ConvBlock(nn.Module):
 
 
 class Descriminator_StyleGAN2(nn.Module):
-    
+    """ Descriminateur pour classifier les images en Réelle ou Fake """
     def __init__(self):
         super().__init__()
         
@@ -178,6 +178,7 @@ class Descriminator_StyleGAN2(nn.Module):
         
         
     def forward(self, input):
+        """ input de shape : batch, channels, Hight, Width """
         
         out = self.convInit(input)
         out = nn.functional.relu(out)
