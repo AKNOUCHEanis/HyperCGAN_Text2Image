@@ -141,3 +141,88 @@ class HyperNetwork_TGS_Head(nn.Module):
         
         return self.linear(h)
     
+class ConvBlock(nn.Module):
+    """ Block de convolutions utilisé dans le descriminateur du GAN """
+    
+    def __init__(self, c_in, c_out):
+        super().__init__()
+        
+        self.conv1 = nn.Conv2d(c_in, c_in, 3, padding=1)
+        self.conv2 = nn.Conv2d(c_in, c_out, 3, padding=1, stride=2)
+        self.conv3 = nn.Conv2d(c_in, c_out, 1, stride=2)
+        self.ReLU = nn.ReLU()
+        
+    def forward(self, input):
+        
+        out = self.ReLU(self.conv1(input))
+        out = self.ReLU(self.conv2(out))
+        
+        reg = self.conv3(input)
+        
+        return (out + reg) /torch.sqrt(torch.tensor(2))
+
+
+class Descriminator_StyleGAN2(nn.Module):
+    
+    def __init__(self):
+        super().__init__()
+        
+        self.convInit = nn.Conv2d(3, 128, 3, padding=1)
+        self.convs =nn.ModuleList([ConvBlock(128, 256),ConvBlock(256, 512)])
+        
+        for i in range(4):
+            self.convs.append(ConvBlock(512, 512))
+        
+        self.convFinal = nn.Conv2d(512,512,3)
+        self.linears = nn.Sequential(nn.Linear(512*4*4, 512), nn.ReLU(), nn.Linear(512,1))
+        
+        
+    def forward(self, input):
+        
+        out = self.convInit(input)
+        out = nn.functional.relu(out)
+        
+        for conv in self.convs:
+        
+            out = conv.forward(out)
+           
+        out = out.view(-1, 512*4*4)
+        out = self.linears(out)
+        
+        return out
+    
+ 
+
+    
+
+        
+    
+    
+    
+    
+    
+
+
+
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    

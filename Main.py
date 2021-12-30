@@ -3,13 +3,17 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from text_encoder import *
-from utils import *
+from Utils import *
 from torch.nn.parameter import Parameter
 import matplotlib.pyplot as plt
 
+from Models import Descriminator_StyleGAN2
+
+import os
+os.environ["KMP_DUPLICATE_LIB_OK"]="TRUE"
 
 
+"""
     
 img=torch.rand((2,512,512))
 desc=torch.randint(1000,(2,100))
@@ -57,3 +61,22 @@ f2[0]
 plt.imshow(f2[0].detach().numpy())
 plt.figure()
 plt.imshow(inputImg[0].squeeze().detach().numpy())
+
+
+import matplotlib.pyplot as plt    
+import torch    
+"""
+
+
+
+if __name__=="__main__":
+    
+    img = torch.rand((1,3,256,256))
+    
+    descriminateur = Descriminator_StyleGAN2()
+    
+    out = descriminateur.forward(img)
+    print(out)
+    
+    #plt.imshow(img.permute(0,3,2,1)[0])
+    #plt.show()
