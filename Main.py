@@ -71,11 +71,16 @@ import torch
 
 if __name__=="__main__":
     
-    img = torch.rand((1,3,256,256))
+    img1 = torch.rand((1,3,256,256))
+    img2 = torch.rand((1,3,256,256))
     
-    descriminateur = Descriminator_StyleGAN2()
+    img = torch.stack([img1, img2], dim=0).squeeze(dim=1)
+    print(img.shape)
     
-    out = descriminateur.forward(img)
+    c = torch.rand((1, 200))
+    descriminateur = Descriminator_StyleGAN2(dim_embedding=200, rank=1)
+    
+    out = descriminateur.forward(img, c)
     print(out)
     
     #plt.imshow(img.permute(0,3,2,1)[0])
