@@ -7,11 +7,13 @@ from Utils import *
 from torch.nn.parameter import Parameter
 import matplotlib.pyplot as plt
 
-from Models import Descriminator_StyleGAN2
+from Models import Discriminator_StyleGAN2, CNN_Encoder, Text_Encoder
+from Losses import discriminator_loss, DAMSM_loss
 
 import os
 os.environ["KMP_DUPLICATE_LIB_OK"]="TRUE"
 
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 """
     
@@ -71,17 +73,85 @@ import torch
 
 if __name__=="__main__":
     
-    img1 = torch.rand((1,3,256,256))
-    img2 = torch.rand((1,3,256,256))
+    Batch_size =10
+    Dim_embedding = 256
     
-    img = torch.stack([img1, img2], dim=0).squeeze(dim=1)
-    print(img.shape)
+    fake_images = torch.rand((Batch_size, 3, Dim_embedding, Dim_embedding)).to(device)
+    real_images = torch.ones((Batch_size, 3, Dim_embedding, Dim_embedding)).to(device)
     
-    c = torch.rand((1, 200))
-    descriminateur = Descriminator_StyleGAN2(dim_embedding=200, rank=1)
     
-    out = descriminateur.forward(img, c)
-    print(out)
+    conditions = torch.rand((Batch_size, 1, Dim_embedding)).to(device)
+    discriminator = Discriminator_StyleGAN2(Dim_embedding, rank=1).to(device)
     
+    #test disciminator loss
+    
+    y_hat_fake = []
+    for i in range(Batch_size):
+        
+        y_hat_fake.append(discriminator.forward(fake_images[i].unsqueeze(0), conditions[i]))
+        
+    y_hat_fake = torch.stack(y_hat_fake, dim=0)
+    
+    y_hat_real = []
+    
+    for i in range(Batch_size) :
+        
+        y_hat_real.append(discriminator.forward(real_images[i].unsqueeze(0), conditions[i]) )
+        
+    y_hat_real = torch.stack(y_hat_real, dim=0)
+    
+    print(y_hat_real)
+    
+    y_hat_wrong = []
+    
+    for i in range(1, Batch_size-1):
+        
+        y_hat_wrong.append(discriminator(real_images[i-1].unsqueeze(0), conditions[i+1]))
+        
+    y_hat_wrong = torch.stack(y_hat_wrong, dim=0)
+        
+    
+    lossD = discriminator_loss(y_hat_real.squeeze(1), y_hat_fake.squeeze(1), y_hat_wrong.squeeze(1))
+    
+    
+    #print(lossD)
+    
+    #DAMSM loss 1- SENTENCE
+    
+    #cnn encoder
+    cnn_encoder = CNN_Encoder(Dim_embedding).to(device)
+    sub_region_features_fake, image_embedding_fake = cnn_encoder(fake_images)
+    
+    #text encoder
+    #text_encoder = Text_Encoder(1000, Dim_embedding, dim_hidden=100).to(device)
+    #sentence_embed = text_encoder(conditions)
+    sentence_embed = conditions.squeeze(1)
+    
+    labels_fake = torch.zeros(Batch_size,1)
+    
+    #print(image_embedding_fake.shape)
+    #print(sentence_embed.shape)
+    lossDAMSM = DAMSM_loss(image_embedding_fake, sentence_embed, labels_fake)
+    
+    
+    lossD = lossD + lossDAMSM
+    print(lossD)
+    
+    
+    #test cnn_encoder
+    """
+    cnn_encoder = CNN_Encoder(dim_embedding).to(device)
+    
+    sub_region_features, image_embedding = cnn_encoder(img)
+    
+    print("sub_region_features :", sub_region_features.shape)
+   
+    print("Image embedding code :", image_embedding.shape)
+    
+    
+    """
     #plt.imshow(img.permute(0,3,2,1)[0])
     #plt.show()
+    
+    #test Loss
+    

@@ -4,6 +4,9 @@ import torch.nn.functional as F
 from torch.nn.utils.rnn import pack_padded_sequence,pad_packed_sequence
 from Utils import tensor_modulation_numpy
 
+from torchvision import models
+from torch.utils import model_zoo
+
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
@@ -163,7 +166,7 @@ class HyperNetwork_TDS_Body(nn.Module):
         return self.linear(embedding)
     
 class HyperNet_Block(nn.Module):
-    """Hypnet block for convBlock """
+    """Hypnet block for convBlock descriminator """
         
     def __init__(self, dim_embedding ,c_in, c_out, rank):
         
@@ -203,8 +206,24 @@ class ConvBlock(nn.Module):
         return (out + reg) /torch.sqrt(torch.tensor(2))
 
 
+class FC_HyperNet(nn.Module):
+    """ HyperNet for Linear Weights """
+    def __init__(self, dim_embedding ,dim_in, dim_out, rank):
+        
+        super().__init__()
+        
+        self.dim_embedding = dim_embedding
+        self.dim_in = dim_in
+        self.dim_out = dim_out
+        self.rank = rank
+        
+        self.linear = nn.Linear(dim_embedding, rank*(dim_in+dim_out+1+1)).to(device)
+        
+    def forward(self, embedding):
+        
+        return self.linear(embedding)
 
-class Descriminator_StyleGAN2(nn.Module):
+class Discriminator_StyleGAN2(nn.Module):
     """ Descriminateur pour classifier les images en Réelle ou Fake """
     def __init__(self, dim_embedding, rank):
         super().__init__()
@@ -221,7 +240,9 @@ class Descriminator_StyleGAN2(nn.Module):
                                      HyperNet_Block(self.dim_embedding, 128, 256, self.rank),
                                      HyperNet_Block(self.dim_embedding, 256, 512, self.rank),
                                      HyperNet_Block(self.dim_embedding, 512, 512, self.rank),
-                                     HyperNetwork_TDS_Body(self.dim_embedding, 512, 512, 3, 3, self.rank)])
+                                     HyperNetwork_TDS_Body(self.dim_embedding, 512, 512, 3, 3, self.rank),
+                                     FC_HyperNet(self.dim_embedding, 512*4*4, 512, self.rank),
+                                     FC_HyperNet(self.dim_embedding, 512, 1, self.rank)])
         
         self.linears = nn.Sequential(nn.Linear(512*4*4, 512), nn.ReLU(), nn.Linear(512,1)) #Param to optimize
         
@@ -278,12 +299,102 @@ class Descriminator_StyleGAN2(nn.Module):
         out = self.convFinal(out)    
            
         out = out.view(-1, 512*4*4)
+        
+        w5 = self.hypnet[5].forward(c)
+        m5 = tensor_modulation_numpy( torch.ones((512, 512*4*4, 1, 1)),w5)
+        self.linears[0].weight.data *= m5[0].view((512, 512*4*4))
+        
+        w6 = self.hypnet[6].forward(c)
+        m6 = tensor_modulation_numpy( torch.ones((1, 512, 1, 1)), w6)
+        self.linears[2].weight.data *= m6[0].view((1,512))
+        
         out = self.linears(out)
         
         return out
     
  
+class CNN_Encoder(nn.Module):
+    
+    def __init__(self, dim_embedding):
+        super().__init__()
+        
+        self.dim_embedding =dim_embedding
+        
+        model = models.inception_v3().to(device)
+        
+        url = 'https://download.pytorch.org/models/inception_v3_google-1a9a5a14.pth'
+        model.load_state_dict(model_zoo.load_url(url))
+        
+        for p in model.parameters():
+            p.requires_grad = False
+            
+        #defining the model    
+        self.Conv2d_1a_3x3 = model.Conv2d_1a_3x3
+        self.Conv2d_2a_3x3 = model.Conv2d_2a_3x3
+        self.Conv2d_2b_3x3 = model.Conv2d_2b_3x3
+        self.Conv2d_3b_1x1 = model.Conv2d_3b_1x1
+        self.Conv2d_4a_3x3 = model.Conv2d_4a_3x3
+        self.Mixed_5b = model.Mixed_5b
+        self.Mixed_5c = model.Mixed_5c
+        self.Mixed_5d = model.Mixed_5d
+        self.Mixed_6a = model.Mixed_6a
+        self.Mixed_6b = model.Mixed_6b
+        self.Mixed_6c = model.Mixed_6c
+        self.Mixed_6d = model.Mixed_6d
+        self.Mixed_6e = model.Mixed_6e
+        self.Mixed_7a = model.Mixed_7a
+        self.Mixed_7b = model.Mixed_7b
+        self.Mixed_7c = model.Mixed_7c
+        
+        self.embed_features = nn.Conv2d(768, self.dim_embedding, kernel_size=1, stride=1, padding=0)
+        self.embed_image = nn.Linear(2048, self.dim_embedding)
+        
+    
+    def forward(self, x):
+        """ x: shape (Batch, nchannels, hight, width )
+            return : ( sub-region features (Batch, dim_embedding, 17, 17) , image embedding code (batch, dim_embedding) )
+        """
+        
+        x = nn.Upsample(size=(299,299), mode='bilinear')(x)
+        
+        x = self.Conv2d_1a_3x3(x)
+        x = self.Conv2d_2a_3x3(x)
+        x = self.Conv2d_2b_3x3(x)
+        x = F.max_pool2d(x, kernel_size=3, stride=2)
+        x = self.Conv2d_3b_1x1(x)
+        x = self.Conv2d_4a_3x3(x)
+        x = F.max_pool2d(x, kernel_size=3, stride=2)
+        x = self.Mixed_5b(x)
+        x = self.Mixed_5c(x)
+        x = self.Mixed_5d(x)
 
+        x = self.Mixed_6a(x)
+        x = self.Mixed_6b(x)
+        x = self.Mixed_6c(x)
+        x = self.Mixed_6d(x)
+        x = self.Mixed_6e(x)
+
+        # sub-region image features
+        sub_region_features = x
+        # N x 17 x 17 x 768
+
+        x = self.Mixed_7a(x)
+        x = self.Mixed_7b(x)
+        x = self.Mixed_7c(x)
+        x = F.avg_pool2d(x, kernel_size=8)
+        
+        # N x 1 x 1 x 2048
+        x = x.reshape(x.shape[0], -1)
+        # N x 2048
+
+        # global image features
+        image_embedding = self.embed_image(x)
+        # N x 512
+        
+        sub_region_features = self.embed_features(sub_region_features)
+        
+        return sub_region_features, image_embedding
+        
     
 
         
