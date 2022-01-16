@@ -110,14 +110,15 @@ if __name__=="__main__":
     y_hat_wrong = torch.stack(y_hat_wrong, dim=0)
         
     
-   #lossD = discriminator_loss(y_hat_real.squeeze(1), y_hat_fake.squeeze(1), y_hat_wrong.squeeze(1))
-   #print("Loss D",lossD)
+    #lossD = discriminator_loss(y_hat_real.squeeze(1), y_hat_fake.squeeze(1), y_hat_wrong.squeeze(1))
+    #print("Loss D",lossD)
     
     #DAMSM loss 1- SENTENCE
     
     #cnn encoder
     cnn_encoder = CNN_Encoder(Dim_embedding).to(device)
     sub_region_features_fake, image_embedding_fake = cnn_encoder(fake_images)
+    sub_region_features_fake = sub_region_features_fake.contiguous()
     
     #text encoder
     #text_encoder = Text_Encoder(1000, Dim_embedding, dim_hidden=100).to(device)
@@ -134,7 +135,6 @@ if __name__=="__main__":
     sub_region_features_fake = sub_region_features_fake.transpose(1,2)
     lossDAMSM = DAMSM_loss(sub_region_features_fake, image_embedding_fake, sentence_embed, word_sentence_embed, labels_fake)
     
-
     print(lossDAMSM)
     
     
@@ -155,3 +155,20 @@ if __name__=="__main__":
     
     #test Loss
     
+    #test pretrained DAMSM
+    """
+    state_dict = torch.load('Pretrained_DAMSM_Loss/image_encoder100.pth', map_location=torch.device("cpu"))
+    state_dict.keys()
+    
+    state_dict.get('emb_features.weight').shape
+    state_dict.get('emb_cnn_code.weight').shape
+    state_dict.get('emb_cnn_code.bias').shape
+    
+    embed_features = nn.Conv2d(768, 256, kernel_size=1, stride=1, padding=0)
+       
+    
+    embed_image = nn.Linear(2048, 256)
+    embed_image.weight.shape
+    embed_image.weight =  nn.Parameter(state_dict.get('emb_cnn_code.weight'))
+    embed_image.bias =  nn.Parameter(state_dict.get('emb_cnn_code.bias'))
+    """

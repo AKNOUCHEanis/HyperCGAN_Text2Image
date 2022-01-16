@@ -47,12 +47,6 @@ def attention_mechanism( query, context, gamma1=5):
     return w, attention.transpose(1,2)
         
         
-    
-    
-    
-        
-    
-
 def words_loss(img_feature_embed, word_sentence_embed, labels, gamma1=5, gamma2=5, gamma3=10, eps=1e-8):
     """ sentence loss  between  images and sentences 
         image_feature_embed : Batch x 289 x Dim_embedding
@@ -61,54 +55,7 @@ def words_loss(img_feature_embed, word_sentence_embed, labels, gamma1=5, gamma2=
         return loss0, loss1
     """
     
-    """
-    similarity = []
-    
-    for i in range(word_sentence_embed.shape[0]):
-        
-        s = cosine_similarity( word_sentence_embed[i,:,:], img_feature_embed[i:,:]) # Sequence x 289
-        
-        assert s.shape[0] == word_sentence_embed.shape[1]
-        assert s.shape[1] == img_feature_embed.shape[1]
-        
-        sum_s = s.sum(dim=0).clamp(min=eps)
-        s = torch.exp(s)/torch.exp(sum_s)
-        
-        similarity.append(s)
-    
-    similarity = torch.tensor(similarity) # Batch x Sequence x 289
-    
-    assert similarity.shape[0] == img_feature_embed.shape[0]
-    assert similarity.shape[1] == word_sentence_embed.shape[1]
-    assert similarity.shape[2] == img_feature_embed.shape[1]
-    
-    sum_s = similarity.sum(dim=2, min=eps) # batch x sequence
-    alpha = torch.exp(gamma1 * similarity)/torch.exp(gamma1 * sum_s) # batch x sequence x 289
-    
-    attention = attention_mechanism(alpha, img_feature_embed) # batch x sequence x dim_embedding
-    
-    c_norm = torch.norm(attention, dim=2) # Batch x Sequence
-    w_norm = torch.norm(word_sentence_embed, dim=2) # Batch x Sequence
-    
-    R_similarity = torch.matmul(attention, word_sentence_embed.permte(0,2,1)) /  (c_norm.reshape*w_norm) # batch x sequence x sequence
-    
-    R_Q_D = []
-    
-    for i in range(R_similarity.shape[0]):
-        tmp =  torch.exp(gamma2 * R_similarity[i,:,:])
-        R_Q_D.append( torch.pow(torch.log(torch.sum(torch.diag(tmp, 0))) , 1/gamma2) )
-        
-    R_Q_D = torch.tensor(R_Q_D) # Batch x 1
-    
-    # Calculation of similarity between Qi and Dj ( Batch x Batch )
-    
-    
-    for i in 
-    R_Qi_Dj 
-    
-    
-    Proba_Q_D = torch.exp(gamma3 * R_Q_D ) / 
-        """
+   
     batch_size = word_sentence_embed.shape[0]
     sequence = word_sentence_embed.shape[1]
     dim_embedding = word_sentence_embed.shape[2]
@@ -195,16 +142,6 @@ def sentence_loss(img_global_embed, sentence_embed, labels, gamma3=10, eps=1e-8 
     return loss_0, loss_1
     
     
-    
-    
-    
-    
-    
-    
-        
-    
-
-
 
 def DAMSM_loss(img_feature_embed, img_global_embed, sentence_embed, word_sentence_embed, labels ,gamma1=5, gamma2=5, gamma3=10, eps=1e-8):
     
@@ -233,7 +170,6 @@ def discriminator_loss( y_hat_real, y_hat_fake, y_hat_wrong):
     fake_errorD = nn.BCEWithLogitsLoss()(y_hat_fake, fake_labels)
     
     wrong_errorD = nn.BCEWithLogitsLoss()(y_hat_wrong, fake_labels[1:-1])
-    
     
     
     return real_errorD +  fake_errorD + wrong_errorD

@@ -325,8 +325,13 @@ class CNN_Encoder(nn.Module):
         url = 'https://download.pytorch.org/models/inception_v3_google-1a9a5a14.pth'
         model.load_state_dict(model_zoo.load_url(url))
         
+        state_dict = torch.load('Pretrained_DAMSM_Loss/image_encoder100.pth', map_location=torch.device("cpu"))
+
+        
         for p in model.parameters():
             p.requires_grad = False
+            
+        
             
         #defining the model    
         self.Conv2d_1a_3x3 = model.Conv2d_1a_3x3
@@ -347,8 +352,11 @@ class CNN_Encoder(nn.Module):
         self.Mixed_7c = model.Mixed_7c
         
         self.embed_features = nn.Conv2d(768, self.dim_embedding, kernel_size=1, stride=1, padding=0)
+        self.embed_features.weight = nn.Parameter(state_dict.get("emb_features.weight"))
+                
         self.embed_image = nn.Linear(2048, self.dim_embedding)
-        
+        self.embed_image.weight =  nn.Parameter(state_dict.get('emb_cnn_code.weight'))
+        self.embed_image.bias =  nn.Parameter(state_dict.get('emb_cnn_code.bias'))
     
     def forward(self, x):
         """ x: shape (Batch, nchannels, hight, width )
