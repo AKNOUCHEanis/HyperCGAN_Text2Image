@@ -19,26 +19,150 @@ def cosine_similarity(x1, x2, eps=1e-8):
     
     return similarity.clamp(min=eps)
     
+def attention_mechanism( query, context, gamma1=5):
+    """ calculation of context of a word 
+        query : Batch x Sequence x Dim_Embedding
+        context : Batch x 289 x Dim_Embedding
+    """
+    batch_size = query.shape[0]
+    sequence = query.shape[1]
+    
+    query = torch.transpose(query, 1, 2) # Batch x Dim_Embedding x Sequence
+    
+    attention = torch.bmm(context, query) # Batch x 289 x Sequence
+    
+    attention = attention.view(batch_size*289, sequence)
+    attention = nn.Softmax()(attention)
+    
+    attention = attention.view(batch_size, 289, sequence)
+    attention = torch.transpose( attention, 1, 2).contiguous()
+    attention = attention.view(batch_size*sequence, 289)
+    
+    attention = attention*gamma1
+    attention = nn.Softmax()(attention)
+    attention = attention.view(batch_size, sequence, 289)
+    
+    w = torch.bmm( torch.transpose(context, 1, 2), torch.transpose(attention, 1,2)) # batch x Dim_embedding x sequence
+    
+    return w, attention.transpose(1,2)
+        
+        
+    
+    
+    
+        
     
 
-def words_loss(img_global_embed, sentence_embed, gamma1):
+def words_loss(img_feature_embed, word_sentence_embed, labels, gamma1=5, gamma2=5, gamma3=10, eps=1e-8):
     """ sentence loss  between  images and sentences 
-        image_global_embed : Batch x Dim_embedding
-        sentence_embed : Batch x Dim_embedding
+        image_feature_embed : Batch x 289 x Dim_embedding
+        word_sentence_embed : Batch x SEQUENCE x Dim_embedding
+        labels : Batch x 1
         return loss0, loss1
     """
     
-    similarity_matrix = torch.mul(sentence_embed, torch.t(img_global_embed))
+    """
+    similarity = []
     
-    similarity_matrix = torch.exp(similarity_matrix)
+    for i in range(word_sentence_embed.shape[0]):
+        
+        s = cosine_similarity( word_sentence_embed[i,:,:], img_feature_embed[i:,:]) # Sequence x 289
+        
+        assert s.shape[0] == word_sentence_embed.shape[1]
+        assert s.shape[1] == img_feature_embed.shape[1]
+        
+        sum_s = s.sum(dim=0).clamp(min=eps)
+        s = torch.exp(s)/torch.exp(sum_s)
+        
+        similarity.append(s)
     
-    sum_features = similarity_matrix.sum(dim=0) # 1 x 289
+    similarity = torch.tensor(similarity) # Batch x Sequence x 289
     
-    similarity_matrix = similarity_matrix/sum_features
+    assert similarity.shape[0] == img_feature_embed.shape[0]
+    assert similarity.shape[1] == word_sentence_embed.shape[1]
+    assert similarity.shape[2] == img_feature_embed.shape[1]
+    
+    sum_s = similarity.sum(dim=2, min=eps) # batch x sequence
+    alpha = torch.exp(gamma1 * similarity)/torch.exp(gamma1 * sum_s) # batch x sequence x 289
+    
+    attention = attention_mechanism(alpha, img_feature_embed) # batch x sequence x dim_embedding
+    
+    c_norm = torch.norm(attention, dim=2) # Batch x Sequence
+    w_norm = torch.norm(word_sentence_embed, dim=2) # Batch x Sequence
+    
+    R_similarity = torch.matmul(attention, word_sentence_embed.permte(0,2,1)) /  (c_norm.reshape*w_norm) # batch x sequence x sequence
+    
+    R_Q_D = []
+    
+    for i in range(R_similarity.shape[0]):
+        tmp =  torch.exp(gamma2 * R_similarity[i,:,:])
+        R_Q_D.append( torch.pow(torch.log(torch.sum(torch.diag(tmp, 0))) , 1/gamma2) )
+        
+    R_Q_D = torch.tensor(R_Q_D) # Batch x 1
+    
+    # Calculation of similarity between Qi and Dj ( Batch x Batch )
     
     
+    for i in 
+    R_Qi_Dj 
     
     
+    Proba_Q_D = torch.exp(gamma3 * R_Q_D ) / 
+        """
+    batch_size = word_sentence_embed.shape[0]
+    sequence = word_sentence_embed.shape[1]
+    dim_embedding = word_sentence_embed.shape[2]
+    similarities = []
+    
+    for i in range(batch_size):
+        
+        words = word_sentence_embed[i,:,:].unsqueeze(0)
+        
+        words = words.view(1, sequence, dim_embedding ) # 1 x sequence x dim_embedding
+        words = words.repeat(batch_size, 1, 1) # batch x sequence x dim_embedding
+        
+        context = img_feature_embed  # batch x 289 x dim_embedding
+        
+        w, attention = attention_mechanism(words, context, gamma1=5)
+        
+        # w : Batch x dim_embedding x sequence 
+        # attention : batch x 289 x sequence
+        
+        #words = words.transpose(1, 2) # batch x sequence x dim_embedding
+    
+        w = torch.transpose(w, 1, 2).contiguous() # batch x sequence x dim_embedding
+        
+        
+        # batch*sequence x dim_embeding
+        words = words.view(batch_size*sequence, -1)
+        
+        w = w.view(batch_size*sequence, -1)
+        
+        similarity = torch.cosine_similarity(words, w, dim=1, eps=1e-8) # batch*sequence x 1
+        
+        similarity = similarity.view(batch_size, sequence) # batch x sequence
+        
+        similarity = torch.exp(gamma2 * similarity)
+        similarity = similarity.sum(dim=1)
+        similarity = torch.log(similarity) # batch x 1
+        
+        similarity = similarity.view(batch_size, 1)
+        
+        assert similarity.shape[0] == batch_size
+        assert similarity.shape[1] == 1
+        
+        # similarities[i,j] : similarity between image i and description j 
+        similarities.append(similarity)
+        
+    similarities = torch.cat(similarities,dim=1)
+    
+    print(similarities.shape)
+    print(labels.shape)
+        
+    loss0 = nn.CrossEntropyLoss()(similarities, labels.view(batch_size).long())
+    loss1 = nn.CrossEntropyLoss()(similarities.transpose(0,1), labels.view(batch_size).long())
+        
+    return loss0, loss1
         
    
 
@@ -82,12 +206,14 @@ def sentence_loss(img_global_embed, sentence_embed, labels, gamma3=10, eps=1e-8 
 
 
 
-def DAMSM_loss(img_global_embed, sentence_embed, labels ,gamma3=5, eps=1e-8):
+def DAMSM_loss(img_feature_embed, img_global_embed, sentence_embed, word_sentence_embed, labels ,gamma1=5, gamma2=5, gamma3=10, eps=1e-8):
     
     
     loss_s_0, loss_s_1 = sentence_loss(img_global_embed, sentence_embed, labels, eps=eps)
     
-    return loss_s_0 + loss_s_1
+    loss_w_0, loss_w_1 = words_loss(img_feature_embed, word_sentence_embed, labels, gamma1, gamma2, gamma3, eps=eps)
+    
+    return (loss_s_0 + loss_s_1)/2 + (loss_w_0 + loss_w_1 )/2
 
 
 

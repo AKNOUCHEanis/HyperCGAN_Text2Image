@@ -73,7 +73,7 @@ import torch
 
 if __name__=="__main__":
     
-    Batch_size =10
+    Batch_size =5
     Dim_embedding = 256
     
     fake_images = torch.rand((Batch_size, 3, Dim_embedding, Dim_embedding)).to(device)
@@ -100,7 +100,6 @@ if __name__=="__main__":
         
     y_hat_real = torch.stack(y_hat_real, dim=0)
     
-    print(y_hat_real)
     
     y_hat_wrong = []
     
@@ -111,10 +110,8 @@ if __name__=="__main__":
     y_hat_wrong = torch.stack(y_hat_wrong, dim=0)
         
     
-    lossD = discriminator_loss(y_hat_real.squeeze(1), y_hat_fake.squeeze(1), y_hat_wrong.squeeze(1))
-    
-    
-    #print(lossD)
+   #lossD = discriminator_loss(y_hat_real.squeeze(1), y_hat_fake.squeeze(1), y_hat_wrong.squeeze(1))
+   #print("Loss D",lossD)
     
     #DAMSM loss 1- SENTENCE
     
@@ -126,16 +123,19 @@ if __name__=="__main__":
     #text_encoder = Text_Encoder(1000, Dim_embedding, dim_hidden=100).to(device)
     #sentence_embed = text_encoder(conditions)
     sentence_embed = conditions.squeeze(1)
+    sequence = 10
+    word_sentence_embed = torch.rand((Batch_size, sequence, Dim_embedding ))
     
     labels_fake = torch.zeros(Batch_size,1)
     
     #print(image_embedding_fake.shape)
     #print(sentence_embed.shape)
-    lossDAMSM = DAMSM_loss(image_embedding_fake, sentence_embed, labels_fake)
+    sub_region_features_fake = sub_region_features_fake.view(Batch_size, Dim_embedding, -1)
+    sub_region_features_fake = sub_region_features_fake.transpose(1,2)
+    lossDAMSM = DAMSM_loss(sub_region_features_fake, image_embedding_fake, sentence_embed, word_sentence_embed, labels_fake)
     
-    
-    lossD = lossD + lossDAMSM
-    print(lossD)
+
+    print(lossDAMSM)
     
     
     #test cnn_encoder
